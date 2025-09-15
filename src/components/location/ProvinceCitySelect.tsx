@@ -1,5 +1,5 @@
 "use client";
-import { ZA_PROVINCES } from "@/src/lib/za";
+import { ZA_PROVINCES } from "../../lib/za";
 export function ProvinceCitySelect({
   value, onChange, showSuburb=false, suburb, onSuburbChange
 }:{ value:{province?:string; city?:string}; onChange:(v:any)=>void; showSuburb?:boolean; suburb?:string; onSuburbChange?:(s:string)=>void }){

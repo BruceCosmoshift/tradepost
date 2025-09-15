@@ -1,9 +1,9 @@
 "use client";
 import { useState, useEffect } from "react";
-import Map from "@/src/components/location/Map";
-import { PrivacyLevelRadio, type Privacy } from "@/src/components/location/PrivacyLevelRadio";
-import AddressAutocomplete from "@/src/components/location/AddressAutocomplete";
-import { ProvinceCitySelect } from "@/src/components/location/ProvinceCitySelect";
+import Map from "../../../components/location/Map";
+import { PrivacyLevelRadio, type Privacy } from "../../../components/location/PrivacyLevelRadio";
+import AddressAutocomplete from "../../../components/location/AddressAutocomplete";
+import { ProvinceCitySelect } from "@/components/location/ProvinceCitySelect";
 
 export default function ListingLocationSection(){
   const [useDefault, setUseDefault] = useState(true);
