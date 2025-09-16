@@ -1,6 +1,16 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { ZA_PROVINCES, PROVINCE_CITIES } from "../../lib/za";
+import * as ZA from "../../lib/za";
+
+// Accept either export shape:
+const ZA_PROVINCES: readonly string[] =
+  (ZA as any).ZA_PROVINCES ??
+  ["Eastern Cape","Free State","Gauteng","KwaZulu-Natal","Limpopo","Mpumalanga","Northern Cape","North West","Western Cape"];
+
+const PROVINCE_CITIES: Record<string, string[]> =
+  (ZA as any).PROVINCE_CITIES ??
+  (ZA as any).ZA_PROVINCE_CITIES ??
+  {};
 
 type PC = { province?: string; city?: string };
 
@@ -29,13 +39,13 @@ export function ProvinceCitySelect({
     return ()=> document.removeEventListener("mousedown", outside);
   },[]);
 
-  // seed city list on province change (or none)
+  // Seed city list when province changes (or none selected)
   useEffect(()=>{
     const seed = value.province && PROVINCE_CITIES[value.province] ? PROVINCE_CITIES[value.province] : NATIONAL_DEFAULTS;
     setCityOpts(seed);
   }, [value.province]);
 
-  // filter + fetch city suggestions while typing
+  // Filter + fetch city suggestions while typing (constrained by province when present)
   useEffect(()=>{
     const t = setTimeout(async ()=>{
       const term = cityQ.trim().toLowerCase();
@@ -43,7 +53,6 @@ export function ProvinceCitySelect({
       let merged = seed;
 
       if(term){
-        // local filter first (so typing "b" shows Bloemfontein, Bethlehem, etc.)
         const local = seed.filter(n => n.toLowerCase().includes(term));
         try{
           const q = [cityQ, value.province, "South Africa"].filter(Boolean).join(", ");
@@ -61,7 +70,7 @@ export function ProvinceCitySelect({
     return ()=> clearTimeout(t);
   }, [cityQ, value.province]);
 
-  // suburb suggestions only after a city is chosen
+  // Suburb suggestions only after a city is chosen
   useEffect(()=>{
     const t = setTimeout(async ()=>{
       if(!value.city){ setSubOpts([]); setSubOpen(false); return; }
@@ -94,7 +103,7 @@ export function ProvinceCitySelect({
           }}
         >
           <option value="">Select…</option>
-          {ZA_PROVINCES.map(p=> <option key={p} value={p}>{p}</option>)}
+          {ZA_PROVINCES.map((p:any)=> <option key={String(p)} value={String(p)}>{String(p)}</option>)}
         </select>
       </label>
 
