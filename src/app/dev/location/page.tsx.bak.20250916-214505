@@ -13,13 +13,13 @@ export default function DevLocationPage(){
   const [suburb, setSuburb] = useState("");
   const [privacy, setPrivacy] = useState<Privacy>("CITY_ONLY");
 
+  // Recenter when city changes (normalized)
   useEffect(()=>{
     (async ()=>{
       if(!pc.city) return;
       const cityNorm = normalizeName(pc.city);
       const q = [cityNorm, pc.province, "South Africa"].filter(Boolean).join(", ");
-      const url = `/api/geocode?q=${encodeURIComponent(q)}${pc.province?`&province=${encodeURIComponent(pc.province)}`:""}${pos?`&lat=${pos.lat}&lng=${pos.lng}`:""}`;
-      const r = await fetch(url);
+      const r = await fetch(`/api/geocode?q=${encodeURIComponent(q)}${pc.province?`&province=${encodeURIComponent(pc.province)}`:""}`);
       const data = await r.json();
       const f = data.features?.[0];
       const c = f?.center || f?.geometry?.coordinates;
@@ -45,7 +45,6 @@ export default function DevLocationPage(){
         showSuburb
         suburb={suburb}
         onSuburbChange={setSuburb}
-        center={pos ?? undefined}
       />
 
       <div style={{ height:12 }} />

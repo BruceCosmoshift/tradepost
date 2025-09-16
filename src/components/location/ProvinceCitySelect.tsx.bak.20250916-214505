@@ -15,8 +15,8 @@ const PROVINCE_CITIES: Record<string, string[]> =
 type PC = { province?: string; city?: string };
 
 export function ProvinceCitySelect({
-  value, onChange, showSuburb=false, suburb, onSuburbChange, center
-}:{ value: PC; onChange:(v:PC)=>void; showSuburb?:boolean; suburb?:string; onSuburbChange?:(s:string)=>void; center?: {lat:number; lng:number} }){
+  value, onChange, showSuburb=false, suburb, onSuburbChange
+}:{ value: PC; onChange:(v:PC)=>void; showSuburb?:boolean; suburb?:string; onSuburbChange?:(s:string)=>void }){
   const [cityQ, setCityQ] = useState(value.city || "");
   const [cityOpts, setCityOpts] = useState<string[]>([]);
   const [cityOpen, setCityOpen] = useState(false);
@@ -45,7 +45,7 @@ export function ProvinceCitySelect({
     setCityOpts(seed);
   }, [value.province]);
 
-  // City type-ahead (province-constrained + normalized + center bias)
+  // City type-ahead (province-constrained + typo-normalized)
   useEffect(()=>{
     const t = setTimeout(async ()=>{
       const term = cityQ.trim().toLowerCase();
@@ -56,8 +56,7 @@ export function ProvinceCitySelect({
         const local = seed.filter(n => n.toLowerCase().includes(term));
         try{
           const q = [normalizeName(cityQ), value.province, "South Africa"].filter(Boolean).join(", ");
-          const url = `/api/geocode?q=${encodeURIComponent(q)}${value.province?`&province=${encodeURIComponent(value.province)}`:""}${center?`&lat=${center.lat}&lng=${center.lng}`:""}`;
-          const r = await fetch(url);
+          const r = await fetch(`/api/geocode?q=${encodeURIComponent(q)}${value.province?`&province=${encodeURIComponent(value.province)}`:""}`);
           const data = await r.json();
           const remote = (data.features||[]).map((f:any)=> f.place_name || f.properties?.label || f.properties?.display_name || f.text || f.display_name);
           merged = Array.from(new Set([...local, ...remote]));
@@ -67,28 +66,27 @@ export function ProvinceCitySelect({
       }
       setCityOpts(merged.slice(0,12));
       if(merged.length>0) setCityOpen(true);
-    }, 300);
+    }, 200);
     return ()=> clearTimeout(t);
-  }, [cityQ, value.province, center?.lat, center?.lng]);
+  }, [cityQ, value.province]);
 
-  // Suburb suggestions (after city), normalized + center bias
+  // Suburb suggestions (after city is chosen), robust name extraction
   useEffect(()=>{
     const t = setTimeout(async ()=>{
       if(!value.city){ setSubOpts([]); setSubOpen(false); return; }
       const term = subQ.trim();
       const q = [term || value.city, normalizeName(value.city), value.province, "South Africa"].filter(Boolean).join(", ");
       try{
-        const url = `/api/geocode?q=${encodeURIComponent(q)}${value.province?`&province=${encodeURIComponent(value.province)}`:""}${value.city?`&city=${encodeURIComponent(value.city)}`:""}${center?`&lat=${center.lat}&lng=${center.lng}`:""}`;
-        const r = await fetch(url);
+        const r = await fetch(`/api/geocode?q=${encodeURIComponent(q)}${value.province?`&province=${encodeURIComponent(value.province)}`:""}${value.city?`&city=${encodeURIComponent(value.city)}`:""}`);
         const data = await r.json();
         const names = (data.features||[]).map((f:any)=> f.place_name || f.properties?.label || f.properties?.display_name || f.text || f.display_name);
-        setSubOpts(Array.from(new Set(names)).slice(0,20));
+        setSubOpts(Array.from(new Set(names)).slice(0,12));
       }catch{
         setSubOpts([]);
       }
-    }, 350);
+    }, 250);
     return ()=> clearTimeout(t);
-  }, [subQ, value.city, value.province, center?.lat, center?.lng]);
+  }, [subQ, value.city, value.province]);
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
