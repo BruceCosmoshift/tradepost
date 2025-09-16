@@ -1,6 +1,18 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { normalizeName } from "../../lib/aliases";
+
+const ALIASES: Record<string,string> = {
+  "harry smith": "Harrismith",
+  "harrie smith": "Harrismith",
+  "harriesmith": "Harrismith",
+  "volker park": "Wilgepark",   // common misspelling
+  "volkier park": "Wilgepark"
+};
+
+function normalizeQuery(q: string){
+  const k = q.trim().toLowerCase();
+  return ALIASES[k] ?? q;
+}
 
 export default function AddressAutocomplete({
   value, onChange, bias
@@ -17,7 +29,7 @@ export default function AddressAutocomplete({
   useEffect(()=>{
     const t = setTimeout(async ()=>{
       if(!q || q.length<2){ setOpts([]); setOpen(false); return; }
-      const nq = normalizeName(q);
+      const nq = normalizeQuery(q);
       const url = `/api/geocode?q=${encodeURIComponent(nq)}${bias?.province?`&province=${encodeURIComponent(bias.province)}`:""}${bias?.city?`&city=${encodeURIComponent(bias.city)}`:""}`;
       const r = await fetch(url); const data = await r.json();
       const list = data.features?.slice(0,8) || [];
@@ -41,7 +53,7 @@ export default function AddressAutocomplete({
         value={q}
         onFocus={()=> setOpen(opts.length>0)}
         onChange={e=>{ setQ(e.target.value); setOpen(true); }}
-        placeholder="Type an address (e.g. 'Harrismith Wilgepark', '12 West St, Sandton')"
+        placeholder="Type an address (e.g. 'Harrismith', '12 West St, Sandton')"
       />
       {open && opts.length>0 && (
         <div
@@ -49,7 +61,7 @@ export default function AddressAutocomplete({
                    border:"1px solid #e5e7eb", borderRadius:12, boxShadow:"0 4px 16px rgba(0,0,0,0.08)", overflow:"hidden" }}
         >
           {opts.map((f:any,i:number)=>{
-            const name = f.place_name || f.properties?.label || f.properties?.display_name || f.display_name;
+            const name = f.place_name || f.properties?.label || f.display_name;
             const center = f.center || f.geometry?.coordinates;
             const lng = center?.[0], lat = center?.[1];
             return (

@@ -1,8 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import * as ZA from "../../lib/za";
-import { normalizeName } from "../../lib/aliases";
 
+// Accept either export shape:
 const ZA_PROVINCES: readonly string[] =
   (ZA as any).ZA_PROVINCES ??
   ["Eastern Cape","Free State","Gauteng","KwaZulu-Natal","Limpopo","Mpumalanga","Northern Cape","North West","Western Cape"];
@@ -39,13 +39,13 @@ export function ProvinceCitySelect({
     return ()=> document.removeEventListener("mousedown", outside);
   },[]);
 
-  // Seed city list on province change
+  // Seed city list when province changes (or none selected)
   useEffect(()=>{
     const seed = value.province && PROVINCE_CITIES[value.province] ? PROVINCE_CITIES[value.province] : NATIONAL_DEFAULTS;
     setCityOpts(seed);
   }, [value.province]);
 
-  // City type-ahead (province-constrained + typo-normalized)
+  // Filter + fetch city suggestions while typing (constrained by province when present)
   useEffect(()=>{
     const t = setTimeout(async ()=>{
       const term = cityQ.trim().toLowerCase();
@@ -55,10 +55,10 @@ export function ProvinceCitySelect({
       if(term){
         const local = seed.filter(n => n.toLowerCase().includes(term));
         try{
-          const q = [normalizeName(cityQ), value.province, "South Africa"].filter(Boolean).join(", ");
+          const q = [cityQ, value.province, "South Africa"].filter(Boolean).join(", ");
           const r = await fetch(`/api/geocode?q=${encodeURIComponent(q)}${value.province?`&province=${encodeURIComponent(value.province)}`:""}`);
           const data = await r.json();
-          const remote = (data.features||[]).map((f:any)=> f.place_name || f.properties?.label || f.properties?.display_name || f.text || f.display_name);
+          const remote = (data.features||[]).map((f:any)=> f.place_name || f.properties?.label || f.text || f.display_name);
           merged = Array.from(new Set([...local, ...remote]));
         }catch{
           merged = local;
@@ -70,16 +70,16 @@ export function ProvinceCitySelect({
     return ()=> clearTimeout(t);
   }, [cityQ, value.province]);
 
-  // Suburb suggestions (after city is chosen), robust name extraction
+  // Suburb suggestions only after a city is chosen
   useEffect(()=>{
     const t = setTimeout(async ()=>{
       if(!value.city){ setSubOpts([]); setSubOpen(false); return; }
       const term = subQ.trim();
-      const q = [term || value.city, normalizeName(value.city), value.province, "South Africa"].filter(Boolean).join(", ");
+      const q = [term || value.city, value.city, value.province, "South Africa"].filter(Boolean).join(", ");
       try{
         const r = await fetch(`/api/geocode?q=${encodeURIComponent(q)}${value.province?`&province=${encodeURIComponent(value.province)}`:""}${value.city?`&city=${encodeURIComponent(value.city)}`:""}`);
         const data = await r.json();
-        const names = (data.features||[]).map((f:any)=> f.place_name || f.properties?.label || f.properties?.display_name || f.text || f.display_name);
+        const names = (data.features||[]).map((f:any)=> f.place_name || f.properties?.label || f.text || f.display_name);
         setSubOpts(Array.from(new Set(names)).slice(0,12));
       }catch{
         setSubOpts([]);

@@ -4,7 +4,6 @@ import Map from "../../../components/location/Map";
 import AddressAutocomplete from "../../../components/location/AddressAutocomplete";
 import { ProvinceCitySelect } from "../../../components/location/ProvinceCitySelect";
 import { PrivacyLevelRadio, type Privacy } from "../../../components/location/PrivacyLevelRadio";
-import { normalizeName } from "../../../lib/aliases";
 
 export default function DevLocationPage(){
   const [pos, setPos] = useState<{lat:number;lng:number}|null>({ lat:-27.996, lng:29.208 });
@@ -13,12 +12,11 @@ export default function DevLocationPage(){
   const [suburb, setSuburb] = useState("");
   const [privacy, setPrivacy] = useState<Privacy>("CITY_ONLY");
 
-  // Recenter when city changes (normalized)
+  // recentre when city changes
   useEffect(()=>{
     (async ()=>{
       if(!pc.city) return;
-      const cityNorm = normalizeName(pc.city);
-      const q = [cityNorm, pc.province, "South Africa"].filter(Boolean).join(", ");
+      const q = [pc.city, pc.province, "South Africa"].filter(Boolean).join(", ");
       const r = await fetch(`/api/geocode?q=${encodeURIComponent(q)}${pc.province?`&province=${encodeURIComponent(pc.province)}`:""}`);
       const data = await r.json();
       const f = data.features?.[0];

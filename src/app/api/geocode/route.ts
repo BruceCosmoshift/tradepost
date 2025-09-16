@@ -1,32 +1,53 @@
 import { NextResponse } from "next/server";
+import { normalizeName } from "../../../lib/aliases";
 
-export async function GET(req: Request){
+function buildQuery(q: string, city?: string | null, province?: string | null) {
+  const qN = normalizeName(q || "");
+  const cN = city ? normalizeName(city) : "";
+  const pN = province ? normalizeName(province) : "";
+  // Prefer the most specific term first, then city/province, then country
+  const parts = [qN, cN, pN, "South Africa"].filter(Boolean);
+  return parts.join(", ");
+}
+
+export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
-  const q = searchParams.get("q");
-  const province = searchParams.get("province") || "";
-  const city = searchParams.get("city") || "";
-  if(!q) return NextResponse.json({ features: [] });
+  const q = searchParams.get("q") || "";
+  const province = searchParams.get("province");
+  const city = searchParams.get("city");
 
-  try{
+  const finalQuery = buildQuery(q, city, province);
+
+  try {
     const key = process.env.MAPTILER_KEY || process.env.NEXT_PUBLIC_MAPTILER_KEY;
-    if(key){
-      const r = await fetch(`https://api.maptiler.com/geocoding/${encodeURIComponent(q)}.json?key=${key}&language=en&country=ZA`);
-      const data = await r.json();
+    if (key) {
+      // MapTiler vector geocoding
+      const url = `https://api.maptiler.com/geocoding/${encodeURIComponent(finalQuery)}.json?key=${key}&language=en&country=ZA`;
+      const R = await fetch(url);
+      const data = await R.json();
       return NextResponse.json(data);
     }
-    // Fallback: Nominatim (polite use)
-    const bias = [city, province, "South Africa"].filter(Boolean).join(", ");
-    const url = `https://nominatim.openstreetmap.org/search?format=geojson&limit=8&countrycodes=za&addressdetails=1&q=${encodeURIComponent(q + (bias?(" "+bias):""))}`;
-    const r = await fetch(url, { headers: { "User-Agent": "TradePost/1.0" }});
-    const data = await r.json();
-    // Map to {features: [{center:[lng,lat], place_name:...}]}
-    const features = (data.features||[]).map((f:any)=>({
-      ...f,
-      center: f.geometry?.coordinates,
-      place_name: f.properties?.display_name || f.properties?.name || f.display_name
-    }));
-    return NextResponse.json({ features });
-  }catch(e:any){
-    return NextResponse.json({ features: [], error: e?.message ?? "geocode failed" }, { status: 200 });
+
+    // Nominatim fallback
+    const url = `https://nominatim.openstreetmap.org/search?format=geojson&limit=10&countrycodes=za&addressdetails=1&q=${encodeURIComponent(finalQuery)}`;
+    const R = await fetch(url, { headers: { "User-Agent": "TradePost/1.0" } });
+    const data = await R.json();
+
+    // Normalize features to include center + a consistent name field
+    const features = (data.features || []).map((f: any) => {
+      const center = f.geometry?.coordinates;
+      const props = f.properties || {};
+      const name =
+        props.display_name ||
+        props.name ||
+        f.place_name ||
+        f.text ||
+        f.display_name;
+      return { ...f, center, place_name: name };
+    });
+
+    return NextResponse.json({ type: "FeatureCollection", features });
+  } catch (e: any) {
+    return NextResponse.json({ features: [], error: e?.message ?? "geocode failed" });
   }
 }
