@@ -1,0 +1,57 @@
+"use client";
+import { useEffect, useState } from "react";
+import Map from "../../../components/location/Map";
+import AddressAutocomplete from "../../../components/location/AddressAutocomplete";
+import { ProvinceCitySelect } from "../../../components/location/ProvinceCitySelect";
+import { PrivacyLevelRadio, type Privacy } from "../../../components/location/PrivacyLevelRadio";
+
+export default function DevLocationPage(){
+  const [pos, setPos] = useState<{lat:number;lng:number}|null>({ lat:-27.996, lng:29.208 }); // Free State default
+  const [addr, setAddr] = useState("");
+  const [pc, setPc] = useState<{province?:string;city?:string}>({});
+  const [suburb, setSuburb] = useState("");
+  const [privacy, setPrivacy] = useState<Privacy>("CITY_ONLY");
+
+  // When City or Province changes, geocode city center and move the pin
+  useEffect(()=>{
+    (async ()=>{
+      if(!pc.city) return;
+      const q = [pc.city, pc.province, "South Africa"].filter(Boolean).join(", ");
+      const r = await fetch(`/api/geocode?q=${encodeURIComponent(q)}&province=${encodeURIComponent(pc.province||"")}&city=${encodeURIComponent(pc.city)}`);
+      const data = await r.json();
+      const f = data.features?.[0];
+      const c = f?.center || f?.geometry?.coordinates;
+      if(Array.isArray(c) && c.length===2){ setPos({ lat:c[1], lng:c[0] }); }
+    })();
+  }, [pc.city, pc.province]);
+
+  return (
+    <main style={{ maxWidth: "768px", margin:"0 auto", padding:"24px" }}>
+      <h1 style={{ fontSize: "20px", fontWeight: 700 }}>Location UI — Test</h1>
+      <div style={{ height:12 }} />
+      <AddressAutocomplete
+        value={addr}
+        bias={pc}
+        onChange={(v)=>{ setAddr(v.address); if(v.lat && v.lng) setPos({lat:v.lat, lng:v.lng}); }}
+      />
+      <div style={{ height:12 }} />
+      <ProvinceCitySelect value={pc} onChange={setPc} showSuburb suburb={suburb} onSuburbChange={setSuburb}/>
+      <div style={{ height:12 }} />
+      <Map
+        lat={pos?.lat ?? -27.996}
+        lng={pos?.lng ?? 29.208}
+        onPick={async (p)=>{
+          setPos(p);
+          const r = await fetch(`/api/revgeocode?lat=${p.lat}&lng=${p.lng}`);
+          const data = await r.json();
+          if(data?.label) setAddr(data.label);
+        }}
+      />
+      <div style={{ height:12 }} />
+      <PrivacyLevelRadio value={privacy} onChange={setPrivacy}/>
+      <p style={{ color:"#6b7280", fontSize:12, marginTop:12 }}>
+        Province: {pc.province || "—"} • City: {pc.city || "—"} • Suburb: {suburb || "—"} • Privacy: {privacy}
+      </p>
+    </main>
+  );
+}

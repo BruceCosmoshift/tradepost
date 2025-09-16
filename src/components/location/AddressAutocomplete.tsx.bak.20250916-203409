@@ -1,19 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 
-const ALIASES: Record<string,string> = {
-  "harry smith": "Harrismith",
-  "harrie smith": "Harrismith",
-  "harriesmith": "Harrismith",
-  "volker park": "Wilgepark",   // common misspelling
-  "volkier park": "Wilgepark"
-};
-
-function normalizeQuery(q: string){
-  const k = q.trim().toLowerCase();
-  return ALIASES[k] ?? q;
-}
-
 export default function AddressAutocomplete({
   value, onChange, bias
 }:{
@@ -28,13 +15,12 @@ export default function AddressAutocomplete({
 
   useEffect(()=>{
     const t = setTimeout(async ()=>{
-      if(!q || q.length<2){ setOpts([]); setOpen(false); return; }
-      const nq = normalizeQuery(q);
-      const url = `/api/geocode?q=${encodeURIComponent(nq)}${bias?.province?`&province=${encodeURIComponent(bias.province)}`:""}${bias?.city?`&city=${encodeURIComponent(bias.city)}`:""}`;
+      if(!q || q.length<3){ setOpts([]); setOpen(false); return; }
+      const url = `/api/geocode?q=${encodeURIComponent(q)}${bias?.province?`&province=${encodeURIComponent(bias.province)}`:""}${bias?.city?`&city=${encodeURIComponent(bias.city)}`:""}`;
       const r = await fetch(url); const data = await r.json();
       const list = data.features?.slice(0,8) || [];
       setOpts(list); setOpen(list.length>0);
-    }, 200);
+    }, 250);
     return ()=> clearTimeout(t);
   }, [q, bias?.province, bias?.city]);
 
@@ -51,9 +37,9 @@ export default function AddressAutocomplete({
       <input
         style={{ width:"100%", padding:"8px 10px", border:"1px solid #d1d5db", borderRadius:12 }}
         value={q}
-        onFocus={()=> setOpen(opts.length>0)}
-        onChange={e=>{ setQ(e.target.value); setOpen(true); }}
-        placeholder="Type an address (e.g. 'Harrismith', '12 West St, Sandton')"
+        onFocus={()=> opts.length>0 && setOpen(true)}
+        onChange={e=>setQ(e.target.value)}
+        placeholder="Type an address, e.g. 12 West St, Sandton"
       />
       {open && opts.length>0 && (
         <div

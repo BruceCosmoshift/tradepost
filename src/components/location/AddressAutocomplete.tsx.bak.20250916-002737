@@ -1,0 +1,60 @@
+"use client";
+import { useEffect, useState } from "react";
+
+export default function AddressAutocomplete({
+  value, onChange, bias
+}:{
+  value: string;
+  onChange: (v: { address: string; lat?: number; lng?: number }) => void;
+  bias?: { province?: string; city?: string };
+}){
+  const [q, setQ] = useState(value);
+  const [opts, setOpts] = useState<any[]>([]);
+
+  useEffect(()=>{
+    const t = setTimeout(async ()=>{
+      if(!q || q.length < 3){ setOpts([]); return; }
+      const url = `/api/geocode?q=${encodeURIComponent(q)}${bias?.province?`&province=${encodeURIComponent(bias.province)}`:""}${bias?.city?`&city=${encodeURIComponent(bias.city)}`:""}`;
+      const r = await fetch(url);
+      const data = await r.json();
+      setOpts(data.features?.slice(0, 8) || []);
+    }, 300);
+    return ()=> clearTimeout(t);
+  }, [q, bias?.province, bias?.city]);
+
+  return (
+    <div style={{ position:"relative" }}>
+      <input
+        style={{ width:"100%", padding:"8px 10px", border:"1px solid #d1d5db", borderRadius:12 }}
+        value={q}
+        onChange={e=>setQ(e.target.value)}
+        placeholder="Type an address, e.g. Sandton City"
+      />
+      {opts.length>0 && (
+        <div
+          style={{
+            position:"absolute", zIndex:20, marginTop:4, width:"100%",
+            background:"#fff", border:"1px solid #e5e7eb", borderRadius:12,
+            boxShadow:"0 4px 16px rgba(0,0,0,0.08)", overflow:"hidden"
+          }}
+        >
+          {opts.map((f:any, i:number)=>{
+            const name = f.place_name || f.properties?.label || f.display_name;
+            const center = f.center || f.geometry?.coordinates;
+            const lng = center?.[0], lat = center?.[1];
+            return (
+              <button
+                key={i}
+                type="button"
+                style={{ display:"block", width:"100%", textAlign:"left", padding:"10px 12px", borderBottom:"1px solid #f3f4f6", background:"white", cursor:"pointer" }}
+                onClick={()=> onChange({ address:String(name), lat, lng })}
+              >
+                {String(name)}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}

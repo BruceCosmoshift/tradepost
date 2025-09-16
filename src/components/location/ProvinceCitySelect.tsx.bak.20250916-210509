@@ -1,0 +1,148 @@
+"use client";
+import { useEffect, useRef, useState } from "react";
+import { ZA_PROVINCES, ZA_PROVINCE_CITIES } from "../../lib/za";
+
+type PC = { province?: string; city?: string };
+export function ProvinceCitySelect({
+  value, onChange, showSuburb=false, suburb, onSuburbChange
+}:{ value: PC; onChange:(v:PC)=>void; showSuburb?:boolean; suburb?:string; onSuburbChange?:(s:string)=>void }){
+  const [cityQ, setCityQ] = useState(value.city || "");
+  const [cityOpts, setCityOpts] = useState<string[]>([]);
+  const [cityOpen, setCityOpen] = useState(false);
+
+  const [subQ, setSubQ] = useState(suburb || "");
+  const [subOpts, setSubOpts] = useState<string[]>([]);
+  const [subOpen, setSubOpen] = useState(false);
+
+  const cityRef = useRef<HTMLDivElement>(null);
+  const subRef  = useRef<HTMLDivElement>(null);
+
+  useEffect(()=>{
+    function outside(e:MouseEvent){
+      if(!cityRef.current?.contains(e.target as Node)) setCityOpen(false);
+      if(!subRef.current?.contains(e.target as Node)) setSubOpen(false);
+    }
+    document.addEventListener("mousedown", outside);
+    return ()=> document.removeEventListener("mousedown", outside);
+  },[]);
+
+  // Province change: reset city/suburb and seed dropdown with curated cities for that province
+  useEffect(()=>{
+    if (value.province){
+      const seed = ZA_PROVINCE_CITIES[value.province] || [];
+      setCityOpts(seed);
+      setCityOpen(true);
+    } else {
+      setCityOpts([]);
+      setCityOpen(false);
+    }
+    setCityQ(value.city || "");
+    setSubQ(suburb || "");
+  }, [value.province]);
+
+  // City type-ahead (bias by province)
+  useEffect(()=>{
+    const t = setTimeout(async ()=>{
+      const term = cityQ.trim();
+      if(!value.province){
+        setCityOpts([]); setCityOpen(false); return;
+      }
+      if(!term){
+        const seed = ZA_PROVINCE_CITIES[value.province] || [];
+        setCityOpts(seed); setCityOpen(seed.length>0); return;
+      }
+      const q = [term, value.province, "South Africa"].filter(Boolean).join(", ");
+      const r = await fetch(`/api/geocode?q=${encodeURIComponent(q)}&province=${encodeURIComponent(value.province)}`);
+      const data = await r.json();
+      const names = (data.features||[]).slice(0,8).map((f:any)=> f.text || f.place_name || f.properties?.label || f.display_name);
+      setCityOpts(names); setCityOpen(names.length>0);
+    }, 250);
+    return ()=> clearTimeout(t);
+  }, [cityQ, value.province]);
+
+  // Suburb type-ahead (requires city)
+  useEffect(()=>{
+    const t = setTimeout(async ()=>{
+      const term = subQ.trim();
+      if(!value.city){
+        setSubOpts([]); setSubOpen(false); return;
+      }
+      if(!term){
+        setSubOpts([]); setSubOpen(false); return;
+      }
+      const q = [term, value.city, value.province, "South Africa"].filter(Boolean).join(", ");
+      const r = await fetch(`/api/geocode?q=${encodeURIComponent(q)}${value.province?`&province=${encodeURIComponent(value.province)}`:""}&city=${encodeURIComponent(value.city)}`);
+      const data = await r.json();
+      const names = (data.features||[]).slice(0,8).map((f:any)=> f.text || f.place_name || f.properties?.label || f.display_name);
+      setSubOpts(names); setSubOpen(names.length>0);
+    }, 250);
+    return ()=> clearTimeout(t);
+  }, [subQ, value.city, value.province]);
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-3" style={{ position:"relative" }}>
+      {/* Province dropdown */}
+      <label className="block">
+        <div className="text-sm font-medium">Province</div>
+        <select
+          className="mt-1 w-full border rounded-xl p-2"
+          value={value.province||""}
+          onChange={e=>{ onChange({ province: e.target.value || undefined, city: undefined }); setCityQ(""); setSubQ(""); }}
+        >
+          <option value="">Select…</option>
+          {ZA_PROVINCES.map(p=> <option key={p} value={p}>{p}</option>)}
+        </select>
+      </label>
+
+      {/* City combobox */}
+      <div className="block" ref={cityRef}>
+        <div className="text-sm font-medium">City/Town</div>
+        <input
+          className="mt-1 w-full border rounded-xl p-2"
+          placeholder={value.province ? "Type to search…" : "Choose province first"}
+          value={cityQ}
+          disabled={!value.province}
+          onFocus={()=> value.province && setCityOpen(true)}
+          onChange={e=> setCityQ(e.target.value)}
+        />
+        {cityOpen && cityOpts.length>0 && (
+          <div style={{ position:"absolute", zIndex:20, marginTop:4, width:"calc(100% - 2px)",
+                        background:"#fff", border:"1px solid #e5e7eb", borderRadius:12, boxShadow:"0 4px 16px rgba(0,0,0,0.08)" }}>
+            {cityOpts.map((name,i)=>(
+              <button key={i} type="button"
+                style={{ display:"block", width:"100%", textAlign:"left", padding:"10px 12px", borderBottom:"1px solid #f3f4f6", background:"white", cursor:"pointer" }}
+                onClick={()=>{ setCityQ(name); onChange({ ...value, city: name }); setCityOpen(false); }}
+              >{name}</button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Suburb combobox */}
+      {showSuburb && (
+        <div className="block" ref={subRef}>
+          <div className="text-sm font-medium">Suburb</div>
+          <input
+            className="mt-1 w-full border rounded-xl p-2"
+            placeholder={value.city ? "Type to search…" : "Choose city first"}
+            value={subQ}
+            disabled={!value.city}
+            onFocus={()=> value.city && setSubOpen(true)}
+            onChange={e=>{ setSubQ(e.target.value); onSuburbChange?.(e.target.value); }}
+          />
+          {subOpen && subOpts.length>0 && (
+            <div style={{ position:"absolute", zIndex:20, marginTop:4, width:"calc(100% - 2px)",
+                          background:"#fff", border:"1px solid #e5e7eb", borderRadius:12, boxShadow:"0 4px 16px rgba(0,0,0,0.08)" }}>
+              {subOpts.map((name,i)=>(
+                <button key={i} type="button"
+                  style={{ display:"block", width:"100%", textAlign:"left", padding:"10px 12px", borderBottom:"1px solid #f3f4f6", background:"white", cursor:"pointer" }}
+                  onClick={()=>{ setSubQ(name); onSuburbChange?.(name); setSubOpen(false); }}
+                >{name}</button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

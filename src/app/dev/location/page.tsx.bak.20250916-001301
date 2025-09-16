@@ -1,0 +1,40 @@
+"use client";
+import { useState } from "react";
+import Map from "../../../components/location/Map";
+import AddressAutocomplete from "../../../components/location/AddressAutocomplete";
+import { ProvinceCitySelect } from "../../../components/location/ProvinceCitySelect";
+import { PrivacyLevelRadio, type Privacy } from "../../../components/location/PrivacyLevelRadio";
+
+export default function DevLocationPage(){
+  const [pos, setPos] = useState<{lat:number;lng:number}|null>(null);
+  const [addr, setAddr] = useState("");
+  const [pc, setPc] = useState<{province?:string;city?:string}>({});
+  const [suburb, setSuburb] = useState("");
+  const [privacy, setPrivacy] = useState<Privacy>("CITY_ONLY");
+
+  return (
+    <main className="max-w-3xl mx-auto p-6 space-y-6">
+      <h1 className="text-2xl font-bold">Location UI — Test</h1>
+      <AddressAutocomplete
+        value={addr}
+        bias={pc}
+        onChange={(v)=>{ setAddr(v.address); if(v.lat && v.lng) setPos({lat:v.lat, lng:v.lng}); }}
+      />
+      <ProvinceCitySelect value={pc} onChange={setPc} showSuburb suburb={suburb} onSuburbChange={setSuburb}/>
+      <Map
+        lat={pos?.lat ?? -27.996}
+        lng={pos?.lng ?? 29.208}
+        onPick={async (p)=>{
+          setPos(p);
+          const r = await fetch(`/api/revgeocode?lat=${p.lat}&lng=${p.lng}`);
+          const data = await r.json();
+          if(data?.label) setAddr(data.label);
+        }}
+      />
+      <PrivacyLevelRadio value={privacy} onChange={setPrivacy}/>
+      <p className="text-sm text-gray-600">
+        Province: {pc.province || "—"} • City: {pc.city || "—"} • Suburb: {suburb || "—"} • Privacy: {privacy}
+      </p>
+    </main>
+  );
+}
