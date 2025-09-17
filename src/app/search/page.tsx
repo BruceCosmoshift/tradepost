@@ -1,60 +1,88 @@
 "use client";
 
-import { useState } from "react";
 import dynamic from "next/dynamic";
-import PlacesAutocompletePhoton, { type PickedPlace } from "@/components/PlacesAutocompletePhoton";
+import { useEffect, useState } from "react";
 
-const MapView = dynamic(() => import("@/components/MapView"), { ssr: false });
+const LeafletMap = dynamic(() => import("@/components/map/LeafletMap"), { ssr: false });
+
+type OSMResult = {
+  display_name: string;
+  lat: string;
+  lon: string;
+};
 
 export default function SearchPage() {
-  const [picked, setPicked] = useState<PickedPlace | null>(null);
-  const [text, setText] = useState<string>("");
-  const [selectionToken, setSelectionToken] = useState(0);
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<OSMResult[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selected, setSelected] = useState<[number, number] | null>(null);
+
+  useEffect(() => {
+    const t = setTimeout(async () => {
+      if (!query || query.length < 3) { setResults([]); return; }
+      try {
+        setLoading(true);
+        const res = await fetch(`/api/osm/search?q=${encodeURIComponent(query)}`);
+        const data: OSMResult[] = await res.json();
+        setResults(data ?? []);
+      } catch {
+        setResults([]);
+      } finally {
+        setLoading(false);
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  const sidebarWidth = 300;
 
   return (
-    <div className="min-h-screen p-6 flex flex-col items-center gap-6">
-      <div className="w-full max-w-3xl grid md:grid-cols-2 gap-6">
-        <div>
-          <label className="block text-sm font-medium mb-1">Search city / town / suburb / street</label>
-          <PlacesAutocompletePhoton
-            externalText={text}
-            placeholder="Try: Durban · Bloemfontein · Sarel Cilliers St, Warden"
-            onSelected={(p) => {
-              setPicked(p);           // update chosen place
-              setText(p.label);       // reflect text
-              setSelectionToken(t => t + 1); // tell map it's a NEW selection
-            }}
+    <div className="grid grid-cols-[300px_1fr] h-[calc(100vh-80px)]">
+      <aside className="border-r p-3 space-y-3 overflow-auto">
+        <div className="text-lg font-semibold">Search location</div>
+
+        <form onSubmit={(e) => e.preventDefault()} className="flex gap-2">
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Type at least 3 letters… (e.g., Durban)"
+            className="flex-1 border rounded px-3 py-2"
           />
-          <div className="mt-2 text-[11px] text-neutral-600">
-            <b>Fly target:</b> {picked?.label ?? "-"} · {picked?.lat?.toFixed(6)}, {picked?.lng?.toFixed(6)} · zoom {picked?.zoomHint ?? 14}
-          </div>
+          <button className="border rounded px-3 py-2" type="submit">Search</button>
+        </form>
+
+        {loading && <div className="text-sm opacity-70">Searching…</div>}
+
+        <div className="space-y-2">
+          {results.slice(0, 8).map((r, i) => {
+            const lat = Number(r.lat), lon = Number(r.lon);
+            return (
+              <button
+                key={i}
+                onClick={() => setSelected([lat, lon])}
+                className="w-full text-left border rounded px-3 py-2 hover:bg-gray-50"
+                title={`${lat.toFixed(5)}, ${lon.toFixed(5)}`}
+              >
+                {r.display_name}
+              </button>
+            );
+          })}
+          {(!loading && query.length >= 3 && results.length === 0) && (
+            <div className="text-sm opacity-70">No results.</div>
+          )}
         </div>
 
-        <div>
-          <div className="text-sm font-medium mb-1">Map (click to drop · drag to adjust)</div>
-          <MapView
-            lat={picked?.lat}
-            lng={picked?.lng}
-            label={picked?.label}
-            selectionToken={selectionToken}
-            selectZoom={picked?.zoomHint ?? 14}
-            onMove={(next) => {
-              if (typeof next.label === "string" && next.label.length > 0) {
-                setText(next.label);
-              } else if (typeof next.lat === "number" && typeof next.lng === "number") {
-                setText(`${next.lat.toFixed(6)}, ${next.lng.toFixed(6)}`);
-              }
-              setPicked(prev => prev
-                ? { ...prev, lat: next.lat, lng: next.lng, label: next.label ?? prev.label }
-                : { id: `${next.lat},${next.lng}`, label: next.label ?? `${next.lat}, ${next.lng}`, lat: next.lat, lng: next.lng }
-              );
-            }}
-          />
+        <div className="text-xs opacity-60 pt-2">
+          Selected: {selected ? `${selected[0].toFixed(5)}, ${selected[1].toFixed(5)}` : "none"}
         </div>
-      </div>
+      </aside>
 
-      <div className="text-xs text-neutral-500">
-        New search → map flies & centers (no manual resize needed). Click/drag keeps your zoom. Labels are place-first.
+      <div className="relative">
+        <LeafletMap
+          selected={selected as any}
+          selectedZoom={13}
+          sidebarPx={sidebarWidth}
+        />
       </div>
     </div>
   );

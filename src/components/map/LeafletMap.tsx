@@ -1,5 +1,4 @@
 "use client";
-
 import { MapContainer, TileLayer, Marker, useMap } from "react-leaflet";
 import L from "leaflet";
 import { useEffect, useMemo } from "react";
@@ -15,12 +14,10 @@ function FlyAndCentre({
   target,
   zoom,
   offsetPx = [0, 0],
-  duration = 0.8,
 }: {
   target?: L.LatLngExpression;
   zoom?: number;
   offsetPx?: [number, number];
-  duration?: number;
 }) {
   const map = useMap();
 
@@ -32,20 +29,18 @@ function FlyAndCentre({
     ro.observe(container);
     const onWin = () => map.invalidateSize({ pan: true });
     window.addEventListener("resize", onWin);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener("resize", onWin);
-    };
+    return () => { ro.disconnect(); window.removeEventListener("resize", onWin); };
   }, [map]);
 
   useEffect(() => {
     if (!map || !target) return;
-    map.invalidateSize();
-    map.flyTo(target, zoom ?? map.getZoom(), { duration });
-    map.once("moveend", () => {
-      if (offsetPx[0] || offsetPx[1]) map.panBy(offsetPx, { animate: true });
-    });
-  }, [map, target, zoom, duration, offsetPx]);
+    map.stop();
+    map.invalidateSize({ pan: true });
+    map.setView(target, zoom ?? map.getZoom(), { animate: false });
+    if (offsetPx[0] || offsetPx[1]) {
+      map.panBy(offsetPx, { animate: false });
+    }
+  }, [map, target, zoom, offsetPx]);
 
   return null;
 }
@@ -72,10 +67,7 @@ export default function LeafletMap({
         style={{ height: "100%", width: "100%", minHeight: 300 }}
         whenReady={(e) => e.target.invalidateSize()}
       >
-        <TileLayer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution="© OpenStreetMap"
-        />
+        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="© OpenStreetMap" />
         {selected && <Marker position={selected} />}
         <FlyAndCentre target={selected ?? undefined} zoom={selectedZoom} offsetPx={offset} />
       </MapContainer>
